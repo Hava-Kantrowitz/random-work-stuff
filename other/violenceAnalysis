@@ -1,0 +1,131 @@
+#!/usr/bin/env python3 
+
+import csv 
+import argparse 
+import pandas as pd 
+import numpy as np
+import matplotlib 
+matplotlib.use('agg') 
+import matplotlib.pyplot as plt
+from sklearn.linear_model import LinearRegression
+from statsmodels.genmod.generalized_estimating_equations import GEE
+from statsmodels.genmod.cov_struct import (Exchangeable,Independence,Autoregressive)
+from statsmodels.genmod.families import Poisson
+import scipy 
+from scipy import optimize
+
+data = pd.read_pickle("navcoData.pkl")
+data.fillna(0) 
+
+goals = data["camp_goals"].dropna()
+actions = data["nv_categ"].dropna()
+response = data["st_posture"].dropna()
+tactics = data["tactical_choice"].dropna()
+country = data["country_name"].dropna()
+
+africa = ["algeria", "egypt", "kenya", "libya", "madagascar", "morocco", "sierra_leone", "south_sudan", "sudan", "tanzania", "tunisia"]
+asia = ["china", "india", "south_korea", "yemen", "uzbekistan"]
+americas = ["mexico", "us"]
+middleEast = ["bahrain", "iraq", "jordan", "pakistan", "syria"]
+europe = ["estonia", "turkey", "ukraine"]
+
+data = data[data['country_name'] in africa]
+
+tactics.replace(2, 1)
+pearson = goals.corr(tactics)
+spearman = goals.corr(tactics, method='spearman')
+print("Pearson coefficient: {0}\nSpearman coefficient: {1}".format(pearson, spearman))
+
+xVar = tactics
+yVar = response 
+
+xLen = len(xVar)
+yLen = len(yVar)
+
+if xLen > yLen:
+	xVar = xVar.head(yLen)
+elif xLen < yLen:
+	yVar = yVar.head(xLen) 
+
+def likelihood(params, y_vector, x_vector):
+    ret = 0
+    # Parameter of Poisson distribution
+    theta = lambda params, x: np.exp(params[0] + params[1]*x)
+    for i in range(y_vector.shape[0]):
+        ret += y_vector[i] * np.log(theta(params, x_vector[i])) - theta(params, x_vector[i])
+    return -ret
+print("here1")
+params = [np.random.rand(), np.random.rand()]
+new_params = scipy.optimize.minimize(likelihood, params, args=(data['tactical_choice'], data['st_posture']))
+print("here2") 
+a, b = new_params.x
+plt.plot(data['tactical_choice'], data['st_posture'], 'o')
+plt.plot(data['tactical_choice'], np.exp(a + b*data['tactical_choice']))
+plt.text(0, 0, "a={:8.3f}, b={:8.3f}".format(a, b))
+plt.savefig("regression") 
+
+
+'''
+for period in range(1, 8):
+	ii = df['st_posture'] == period 
+	x = np.sqrt(df['tactical_choice'].loc[ii])
+	y = np.sqrt(df['nv_categ'].loc[ii])
+	plt.plot(x, y, 'o')
+plt.xlabel("Violence XL", size=17)
+plt.ylabel("Violence YL", size=17)
+plt.ylim(ymin=-0.5)
+ha, lb = plt.gca().get_legend_handles_labels()
+leg = plt.figlegend(ha, lb, "center right", numpoints=1, handletextpad=0.0001)
+leg.draw_frame(False)
+
+fam = Poisson()
+ind = Independence()
+model1 = GEE.from_formula("country_name ~ tactical_choice + nv_categ", "st_posture", df, cov_struct=ind, family=fam)
+result1 = model1.fit()
+print(result1.summary())
+plt.savefig("regression") 
+
+xSet = xVar.values.reshape(-1, 1)
+ySet = yVar.values.reshape(-1, 1) 
+
+
+linear_regressor = LinearRegression()
+linear_regressor.fit(xSet, ySet)
+y_pred = linear_regressor.predict(xSet)
+plt.scatter(xSet, ySet)
+plt.plot(xSet, y_pred, color='red')
+plt.savefig("regression") 
+
+
+africa = ["algeria", "egypt", "kenya", "libya", "madagascar", "morocco", "sierra_leone", "south_sudan", "sudan", "tanzania", "tunisia"]
+asia = ["china", "india", "south_korea", "yemen", "uzbekistan"]
+americas = ["mexico", "us"]
+middleEast = ["bahrain", "iraq", "jordan", "pakistan", "syria"]
+europe = ["estonia", "turkey", "ukraine"]
+
+goal_total = 0
+goal_dict = {}
+for val in country:
+	goal_total = goal_total + 1 
+	region = ""
+	if val in africa:
+		region = "africa"
+	elif val in asia: 
+		region = "asia"
+	elif val in americas:
+		region = "americas"
+	elif val in middleEast:
+		region = "middleEast"
+	elif val in europe:
+		region = "europe"
+	if region in goal_dict:
+		tempVal = goal_dict[region] + 1
+		goal_dict[region] = tempVal 
+	else:
+		goal_dict[region] = 1
+
+for val in goal_dict: 
+	percentage = goal_dict[val] / goal_total
+	print("{0}: {1}%".format(val, percentage))
+
+'''
